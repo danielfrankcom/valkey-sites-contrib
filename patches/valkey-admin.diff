@@ -81,10 +81,10 @@ index e9707c65..952b08d6 100644
  				{
 diff --git a/docs-site/public/pagefind-merge.js b/docs-site/public/pagefind-merge.js
 new file mode 100644
-index 00000000..cc6c16c0
+index 00000000..2bdf6883
 --- /dev/null
 +++ b/docs-site/public/pagefind-merge.js
-@@ -0,0 +1,106 @@
+@@ -0,0 +1,112 @@
 +// Cross-site search: merges the valkey.io, GLIDE and Spring Data Valkey Pagefind indexes into this site's search.
 +//
 +// Why not Starlight's `pagefind.mergeIndex` setting: Pagefind then stops the whole search box (this site's results
@@ -108,6 +108,9 @@ index 00000000..cc6c16c0
 +export const ranking = { pageLength: 0.1, termFrequency: 0.1, termSaturation: 2, termSimilarity: 9 };
 +// The search box sets a 12-word excerpt on this site's index only; merged indexes would default to 30.
 +const excerptLength = 12;
++// How much other sites' results count against this site's. Each site sets its own; the ranking settings above stay the
++// same everywhere. Here they count a tenth as much, so this site's own pages come first for most queries.
++const otherSiteWeight = 1 / 10;
 +// Every search waits for every merged index, so a site that answers much more slowly than this one would slow down
 +// every search. Such a site is left out for this page view. A slow network slows both, so they still merge.
 +const slowSiteFactor = 3;
@@ -174,7 +177,10 @@ index 00000000..cc6c16c0
 +        console.warn(`Search: not merging ${bundlePath} (answered in ${Math.round(other.ms)} ms, this site in ${Math.round(own.ms)} ms)`);
 +        return;
 +      }
-+      await pagefind.mergeIndex(other.bundle, { ranking, excerptLength });
++      await pagefind.mergeIndex(other.bundle, { ranking, excerptLength, indexWeight: otherSiteWeight });
++      // Load the merged index's filter values now. The search box read the filter list before this merge, so the site
++      // filter would otherwise list only this site until a visitor picks a filter.
++      await pagefind.filters();
 +      searchAgain();
 +    }),
 +  );

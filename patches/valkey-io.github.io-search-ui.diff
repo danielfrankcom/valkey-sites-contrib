@@ -247,6 +247,26 @@ index 5e44681..128e4e7 100644
 +  background-color: #e4e0f7;
 +  color: #2d2471;
 +}
+diff --git a/templates/default.html b/templates/default.html
+index 24023e2..a3751a0 100644
+--- a/templates/default.html
++++ b/templates/default.html
+@@ -62,6 +62,7 @@
+         </div>
+         <a role="menuitem" href="/participants/">Participants</a>
+         <a role="menuitem" href="/try-valkey/">Try Valkey</a>
++        <div id="site-search" class="site-search"></div>
+         <a role="menuitem" href="https://github.com/valkey-io" target="_blank" class="github-button">
+           <img src="/img/IconGithub.svg" alt="GitHub Icon" width="16" height="16" />
+           GitHub
+@@ -69,7 +70,6 @@
+         </a>
+         
+       </nav>
+-      <div id="site-search" class="site-search"></div>
+     </div>
+   </div>
+   <div class="body">
 diff --git a/templates/includes/head.html b/templates/includes/head.html
 index 4073066..2cf4fea 100644
 --- a/templates/includes/head.html

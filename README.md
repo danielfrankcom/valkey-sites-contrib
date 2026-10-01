@@ -17,6 +17,9 @@ It isn't an official Valkey project, and nothing here is upstream.
 Each site keeps its own [Pagefind](https://pagefind.app/) index, built in its own deploy workflow.
 A small script on each site merges the other sites' indexes into its search box,
 and skips any site whose index is missing, slow, or built with an incompatible Pagefind version.
+Each result is labelled with its site, and a site filter lists all four sites.
+The docs sites count the other sites' results at a tenth of their own, so their own pages come first for most queries.
+valkey.io counts every site the same.
 
 - **valkey.io** gains Pagefind search. Zola has no built-in search UI, so the proposal uses Pagefind's default UI as a placeholder.
   `build/pagefind-step.sh` downloads a pinned Pagefind binary, checks it against the release checksum, and indexes the built site.
@@ -40,7 +43,8 @@ The patches change nothing else. Each site keeps the Pagefind version it runs to
 
 [`patches/valkey-io.github.io-search-ui.diff`](patches/valkey-io.github.io-search-ui.diff) is a separate change on top of the valkey.io patch,
 by [@vic-tsang](https://github.com/vic-tsang). It styles the search box to match the site's header, shows results as a dropdown of cards
-under the box, and loads more results as the dropdown scrolls. The search box design is a separate decision from the search backend,
+under the box, and loads more results as the dropdown scrolls. It also moves the search box into the header's navigation,
+so on mobile it sits at the top of the menu. The search box design is a separate decision from the search backend,
 so it lives in its own patch.
 
 ## How the demo is built
@@ -58,6 +62,14 @@ Neither is part of the proposal.
   and removes the analytics tags (Google Tag Manager, the consent manager, and a tracking pixel) so the demo doesn't report page views.
 
 The sites' content is pinned too: valkey.io's build reads `valkey-doc`, `valkey`, and the module repositories at the commits in the workflow.
+
+## Known limitations
+
+- **One site at a time in the site filter.** Pagefind's default UI, which Starlight also uses, combines filter values with AND
+  ([Pagefind #594](https://github.com/Pagefind/pagefind/issues/594)). Each page belongs to one site, so ticking a second site shows no results.
+  Picking several sites at once needs a custom search UI.
+- **Searches for a site's own name.** Pagefind scores each index on its own, so a word on nearly every page of one site, like
+  "spring" on Spring Data Valkey, counts for little in that site's index. A query like `spring data` can rank other sites' pages first.
 
 ## What the demo doesn't show
 

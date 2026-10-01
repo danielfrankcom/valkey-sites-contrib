@@ -6,7 +6,7 @@ name: Build and deploy the demo
 # a path on this Pages site and remove analytics.
 #
 # Each site's version script reads the other sites' indexes from the previous deploy of this demo, as it would read
-# the live sites in production. After a Pagefind version change, run this workflow twice.
+# the live sites in production. The first deploy, and the first after a Pagefind version change, needs a second run.
 on:
   push:
     branches: [main]
@@ -47,6 +47,8 @@ jobs:
       - name: Apply the proposed changes
         run: |
           git -C sites/valkey-io.github.io apply "$PWD/patches/valkey-io.github.io.diff"
+          # The search box design, a separate change on top (see README.md).
+          git -C sites/valkey-io.github.io apply "$PWD/patches/valkey-io.github.io-search-ui.diff"
           demo/adapt.sh valkey-io sites/valkey-io.github.io
 
       - name: Init commands, topics and clients

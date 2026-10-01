@@ -18,7 +18,7 @@ Each site keeps its own [Pagefind](https://pagefind.app/) index, built in its ow
 A small script on each site merges the other sites' indexes into its search box,
 and skips any site whose index is missing, slow, or built with an incompatible Pagefind version.
 
-- **valkey.io** gains Pagefind search. Zola has no built-in search UI, so the search box is Pagefind's default UI, as a placeholder.
+- **valkey.io** gains Pagefind search. Zola has no built-in search UI, so the proposal uses Pagefind's default UI as a placeholder.
   `build/pagefind-step.sh` downloads a pinned Pagefind binary, checks it against the release checksum, and indexes the built site.
   `pagefind.yml` limits the index to page content, and `build/check-search-index.sh` fails the build if a page is missing from the index.
 - **The three Starlight sites** keep Starlight's built-in Pagefind search.
@@ -26,6 +26,22 @@ and skips any site whose index is missing, slow, or built with an incompatible P
 - **Every site** gets the same `pagefind-federation.sh`. Pagefind can only merge an index built with the same minor version,
   so each deploy also publishes copies of the site's index for the other Pagefind versions in use.
   The script also runs a version-change check: a change that would leave another site out of this site's search fails the build.
+
+The patches change nothing else. Each site keeps the Pagefind version it runs today:
+
+| Site | Pagefind | Pinned commit |
+|---|---|---|
+| valkey.io | 1.5.2 (new) | `edd43e6` on `main` |
+| GLIDE docs | 1.3.0 | `19b5eca` on `public`, the branch its deploy workflow publishes |
+| Valkey Admin docs | 1.5.2 | `cb34ef5e` on `main` |
+| Spring Data Valkey docs | 1.4.0 | `01cf031` on `main` |
+
+### valkey.io search box design
+
+[`patches/valkey-io.github.io-search-ui.diff`](patches/valkey-io.github.io-search-ui.diff) is a separate change on top of the valkey.io patch,
+by [@vic-tsang](https://github.com/vic-tsang). It styles the search box to match the site's header, shows results as a dropdown of cards
+under the box, and loads more results as the dropdown scrolls. The search box design is a separate decision from the search backend,
+so it lives in its own patch.
 
 ## How the demo is built
 
@@ -47,10 +63,10 @@ The sites' content is pinned too: valkey.io's build reads `valkey-doc`, `valkey`
 
 - **Cross-origin requests.** All four sites share one origin here, while in production each site has its own hostname.
   GitHub Pages sends `Access-Control-Allow-Origin: *` on every file, which is what cross-site merging needs.
-- **Mixed Pagefind versions.** All four sites run Pagefind 1.5.2, so no site needs another's version copy.
 - **API reference pages.** The GLIDE API docs and the Spring Data Valkey Javadoc aren't built. They aren't indexed today either.
 - **Independent deploys.** The four sites deploy together here. Each version script still reads the other sites from the previous demo deploy,
-  the way it would read the live sites, so after a Pagefind version change the workflow needs to run twice.
+  the way it would read the live sites. So the first deploy, and the first after a Pagefind version change, needs a second run
+  before every site publishes the copies the others need.
 
 ## Updating
 

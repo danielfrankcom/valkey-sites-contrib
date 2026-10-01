@@ -1,0 +1,183 @@
+name: Build and deploy the demo
+
+# Builds the four Valkey sites from the pinned commits in sites/, with the proposed changes in patches/ applied,
+# and publishes them together on this repository's GitHub Pages site. Each site's build follows its own deploy
+# workflow upstream. demo/adapt.sh and demo/rebase.py are the only demo-specific steps: they move each site under
+# a path on this Pages site and remove analytics.
+#
+# Each site's version script reads the other sites' indexes from the previous deploy of this demo, as it would read
+# the live sites in production. After a Pagefind version change, run this workflow twice.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+env:
+  DEMO_ORIGIN: https://danielfrankcom.github.io
+  DEMO_PATH: /valkey-sites-contrib
+
+jobs:
+  valkey-io:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check out valkey.io at the pinned commit
+        run: git submodule update --init --depth 1 sites/valkey-io.github.io
+
+      # The content repositories valkey.io's build reads, pinned so the demo is reproducible.
+      # zola-deploy.yml checks out the same repositories (at their default branches) next to the website.
+      - uses: actions/checkout@v4
+        with: { repository: valkey-io/valkey-doc, ref: a77986fbc98df006a5d113323a1c908fef7bc4d4, path: sites/valkey-doc }
+      - uses: actions/checkout@v4
+        with: { repository: valkey-io/valkey, ref: ae819a9419bb519f1cfbab04f2213899adf78e84, path: sites/valkey }
+      - uses: actions/checkout@v4
+        with: { repository: valkey-io/valkey-bloom, ref: 74d7eb17c9ef25d36223120f46fd406ec5d52862, path: sites/valkey-bloom }
+      - uses: actions/checkout@v4
+        with: { repository: valkey-io/valkey-search, ref: 20f414ee1eec24622e4e30bdc86e3362ac817ca0, path: sites/valkey-search }
+      - uses: actions/checkout@v4
+        with: { repository: valkey-io/valkey-json, ref: 58faf1ca5fb35b5e3ccc70d5d8bde60ed6c35d1a, path: sites/valkey-json }
+
+      - name: Apply the proposed changes
+        run: |
+          git -C sites/valkey-io.github.io apply "$PWD/patches/valkey-io.github.io.diff"
+          demo/adapt.sh valkey-io sites/valkey-io.github.io
+
+      - name: Init commands, topics and clients
+        working-directory: sites/valkey-io.github.io
+        run: |
+          ./build/init-topics-and-clients.sh ../valkey-doc/topics ../valkey-doc/clients
+          ./build/init-commands.sh ../valkey-doc/commands \
+            ../valkey/src/commands ../valkey-bloom/src/commands \
+            ../valkey-json/src/commands ../valkey-search/src/commands
+
+      - name: Build only
+        uses: shalzz/zola-deploy-action@v0.22.0
+        env:
+          BUILD_DIR: sites/valkey-io.github.io
+          BUILD_ONLY: true
+          BUILD_THEMES: false
+
+      # The Zola action runs in a container as root, so public/ belongs to root.
+      - name: Move the site under its demo path
+        run: sudo python3 demo/rebase.py sites/valkey-io.github.io/public "$DEMO_PATH/valkey-io"
+
+      # The proposed step, as patches/valkey-io.github.io.diff adds it to zola-deploy.yml.
+      - name: Build search index
+        working-directory: sites/valkey-io.github.io
+        run: ./build/pagefind-step.sh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/upload-artifact@v4
+        with: { name: valkey-io, path: sites/valkey-io.github.io/public }
+
+  glide:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check out the GLIDE docs at the pinned commit
+        run: git submodule update --init --depth 1 sites/valkey-glide-docs
+      - name: Apply the proposed changes
+        run: |
+          git -C sites/valkey-glide-docs apply "$PWD/patches/valkey-glide-docs.diff"
+          demo/adapt.sh glide sites/valkey-glide-docs
+
+      # ci-cd.yml uses withastro/action@v4 with pnpm@10 on its default Node version, 22.
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Build
+        working-directory: sites/valkey-glide-docs
+        run: |
+          npm install -g pnpm@10
+          pnpm install
+          pnpm run build && ./scripts/pagefind-federation.sh build dist public/pagefind-merge.js
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Move the site under its demo path
+        run: python3 demo/rebase.py sites/valkey-glide-docs/dist "$DEMO_PATH/glide"
+      - uses: actions/upload-artifact@v4
+        with: { name: glide, path: sites/valkey-glide-docs/dist }
+
+  valkey-admin:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check out Valkey Admin at the pinned commit
+        run: git submodule update --init --depth 1 sites/valkey-admin
+      - name: Apply the proposed changes
+        run: |
+          git -C sites/valkey-admin apply "$PWD/patches/valkey-admin.diff"
+          demo/adapt.sh valkey-admin sites/valkey-admin
+
+      # deploy-site.yml uses withastro/action@v6 on its default Node version, 24, with npm.
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
+      - name: Build
+        working-directory: sites/valkey-admin/docs-site
+        run: |
+          npm install
+          npm run build && ./scripts/pagefind-federation.sh build dist public/pagefind-merge.js
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Move the site under its demo path
+        run: python3 demo/rebase.py sites/valkey-admin/docs-site/dist "$DEMO_PATH/valkey-admin"
+      - uses: actions/upload-artifact@v4
+        with: { name: valkey-admin, path: sites/valkey-admin/docs-site/dist }
+
+  spring:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check out Spring Data Valkey at the pinned commit
+        run: git submodule update --init --depth 1 sites/spring-data-valkey
+      - name: Apply the proposed changes
+        run: |
+          git -C sites/spring-data-valkey apply "$PWD/patches/spring-data-valkey.diff"
+          demo/adapt.sh spring sites/spring-data-valkey
+
+      # docs.yml: Node 20, `npm ci`, `npm run build`, then the proposed step. Its Javadoc and XSD steps aren't reproduced.
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - name: Build
+        working-directory: sites/spring-data-valkey/docs
+        run: |
+          npm ci
+          npm run build
+      - name: Build search index copies for the other Valkey sites
+        working-directory: sites/spring-data-valkey/docs
+        run: ./scripts/pagefind-federation.sh build dist public/pagefind-merge.js
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Move the site under its demo path
+        run: python3 demo/rebase.py sites/spring-data-valkey/docs/dist "$DEMO_PATH/spring"
+      - uses: actions/upload-artifact@v4
+        with: { name: spring, path: sites/spring-data-valkey/docs/dist }
+
+  deploy:
+    needs: [valkey-io, glide, valkey-admin, spring]
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { path: _site }
+      - run: cp demo/index.html _site/index.html
+      - uses: actions/upload-pages-artifact@v3
+        with: { path: _site }
+      - id: deployment
+        uses: actions/deploy-pages@v4

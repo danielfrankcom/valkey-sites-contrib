@@ -1,0 +1,12 @@
+[submodule "sites/valkey-io.github.io"]
+	path = sites/valkey-io.github.io
+	url = https://github.com/valkey-io/valkey-io.github.io.git
+[submodule "sites/valkey-glide-docs"]
+	path = sites/valkey-glide-docs
+	url = https://github.com/valkey-io/valkey-glide-docs.git
+[submodule "sites/valkey-admin"]
+	path = sites/valkey-admin
+	url = https://github.com/valkey-io/valkey-admin.git
+[submodule "sites/spring-data-valkey"]
+	path = sites/spring-data-valkey
+	url = https://github.com/valkey-io/spring-data-valkey.git

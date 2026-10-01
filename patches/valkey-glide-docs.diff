@@ -1,0 +1,628 @@
+diff --git a/.github/workflows/ci-cd.yml b/.github/workflows/ci-cd.yml
+index a765f95..9b9b8c7 100644
+--- a/.github/workflows/ci-cd.yml
++++ b/.github/workflows/ci-cd.yml
+@@ -163,8 +163,13 @@ jobs:
+       # Build the Astro Site
+       - name: Build and upload site
+         uses: withastro/action@v4
++        env:
++          # Lifts the anonymous GitHub API limit when pagefind-federation.sh lists Pagefind releases.
++          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+         with:
+           package-manager: pnpm@10
++          # After the Astro build: copies of the search index for the Pagefind versions the other Valkey sites run.
++          build-cmd: pnpm run build && ./scripts/pagefind-federation.sh build dist public/pagefind-merge.js
+ 
+       - name: Upload dist
+         uses: actions/upload-artifact@v4
+diff --git a/astro.config.mjs b/astro.config.mjs
+index c17ec52..ec51c96 100755
+--- a/astro.config.mjs
++++ b/astro.config.mjs
+@@ -1,6 +1,8 @@
+ // @ts-check
+ import { defineConfig } from "astro/config";
+ import starlight from "@astrojs/starlight";
++// The search ranking settings, shared with the script that merges the other sites' indexes.
++import { ranking as searchRanking } from "./public/pagefind-merge.js";
+ import starlightLinksValidator from "starlight-links-validator";
+ import mermaid from "astro-mermaid";
+ 
+@@ -53,7 +55,20 @@ export default defineConfig({
+     }),
+     starlight({
+       title: "Valkey Glide",
+-      head: [...googleTagManagerHeader],
++      head: [
++        ...googleTagManagerHeader,
++        // Cross-site search: merges the valkey.io, Valkey Admin and Spring Data Valkey indexes (see the script for why not pagefind.mergeIndex).
++        { tag: "script", attrs: { type: "module", src: "/pagefind-merge.js" } },
++        // Names this site in search results (label and filter) on every Valkey site's search.
++        {
++          tag: "meta",
++          attrs: {
++            "data-pagefind-filter": "site[content]",
++            "data-pagefind-meta": "site[content]",
++            content: "GLIDE",
++          },
++        },
++      ],
+       components: { ...googleTagManagerBody },
+       logo: {
+         light: "./src/assets/valkey-glide-logo-with-name-light.svg",
+@@ -71,6 +86,8 @@ export default defineConfig({
+           ],
+         }),
+       ],
++      // Same ranking on every Valkey site's search (see public/pagefind-merge.js).
++      pagefind: { ranking: searchRanking },
+       customCss: ["./src/styles/custom.css"],
+       favicon: "/favicon-32x32.png",
+       editLink: {
+diff --git a/pnpm-lock.yaml b/pnpm-lock.yaml
+index 17d27d1..65f4cd2 100644
+--- a/pnpm-lock.yaml
++++ b/pnpm-lock.yaml
+@@ -1025,48 +1025,64 @@ packages:
+         integrity: sha512-70wQhgYmndg4GCPxPPxPGevRKqTIJ2Nh4OkiMWmDAVYsTQ+Ta7Sq+rPevXyXGdzr30/qZBnyOalCszoMxlyldQ==,
+       }
+ 
+-  "@pagefind/darwin-arm64@1.3.0":
++  "@pagefind/darwin-arm64@1.5.2":
+     resolution:
+       {
+-        integrity: sha512-365BEGl6ChOsauRjyVpBjXybflXAOvoMROw3TucAROHIcdBvXk9/2AmEvGFU0r75+vdQI4LJdJdpH4Y6Yqaj4A==,
++        integrity: sha512-MXpI+7HsAdPkvJ0gk9xj9g541BCqBZOBbdwj9g6lB5LCj6kSV6nqDSjzcAJwvOsfu0fjwvC8hQU+ecfhp+MpiQ==,
+       }
+     cpu: [arm64]
+     os: [darwin]
+ 
+-  "@pagefind/darwin-x64@1.3.0":
++  "@pagefind/darwin-x64@1.5.2":
+     resolution:
+       {
+-        integrity: sha512-zlGHA23uuXmS8z3XxEGmbHpWDxXfPZ47QS06tGUq0HDcZjXjXHeLG+cboOy828QIV5FXsm9MjfkP5e4ZNbOkow==,
++        integrity: sha512-IojxFWMEJe0RQ7PQ3KXQsPIImNsbpPYpoZ+QUDrL8fAl/O27IX+LVLs74/UzEZy5uA2LD8Nz1AiwKr72vrkZQw==,
+       }
+     cpu: [x64]
+     os: [darwin]
+ 
+-  "@pagefind/default-ui@1.3.0":
++  "@pagefind/default-ui@1.5.2":
+     resolution:
+       {
+-        integrity: sha512-CGKT9ccd3+oRK6STXGgfH+m0DbOKayX6QGlq38TfE1ZfUcPc5+ulTuzDbZUnMo+bubsEOIypm4Pl2iEyzZ1cNg==,
++        integrity: sha512-pm1LMnQg8N2B3n2TnjKlhaFihpz6zTiA4HiGQ6/slKO/+8K9CAU5kcjdSSPgpuk1PMuuN4hxLipUIifnrkl3Sg==,
+       }
+ 
+-  "@pagefind/linux-arm64@1.3.0":
++  "@pagefind/freebsd-x64@1.5.2":
+     resolution:
+       {
+-        integrity: sha512-8lsxNAiBRUk72JvetSBXs4WRpYrQrVJXjlRRnOL6UCdBN9Nlsz0t7hWstRk36+JqHpGWOKYiuHLzGYqYAqoOnQ==,
++        integrity: sha512-7EVzo9+0w+2cbe671BtMj10UlNo83I+HrLVLfRxO731svHRJKUfJ/mo05gU14pe9PCfpKNQT8FS3Xc/oDN6pOA==,
++      }
++    cpu: [x64]
++    os: [freebsd]
++
++  "@pagefind/linux-arm64@1.5.2":
++    resolution:
++      {
++        integrity: sha512-Ovt9+K35sqzn8H3ZMXGwls4TD/wMJuvRtShHIsmUQREmaxjrDEX7gHckRCrwYJ4XE1H1p6HkLz3wukrAnsfXQw==,
+       }
+     cpu: [arm64]
+     os: [linux]
+ 
+-  "@pagefind/linux-x64@1.3.0":
++  "@pagefind/linux-x64@1.5.2":
+     resolution:
+       {
+-        integrity: sha512-hAvqdPJv7A20Ucb6FQGE6jhjqy+vZ6pf+s2tFMNtMBG+fzcdc91uTw7aP/1Vo5plD0dAOHwdxfkyw0ugal4kcQ==,
++        integrity: sha512-V+tFqHKXhQKq/WqPBD67AFy7scn1/aZID00ws4fSDd+1daSi5UHR9VVlRrOUYKxn3VuFQYRD7lYXdZK1WED1YA==,
+       }
+     cpu: [x64]
+     os: [linux]
+ 
+-  "@pagefind/windows-x64@1.3.0":
++  "@pagefind/windows-arm64@1.5.2":
+     resolution:
+       {
+-        integrity: sha512-BR1bIRWOMqkf8IoU576YDhij1Wd/Zf2kX/kCI0b2qzCKC8wcc2GQJaaRMCpzvCCrmliO4vtJ6RITp/AnoYUUmQ==,
++        integrity: sha512-hN9Nh90fNW61nNRCW9ZyQrAj/mD0eRvmJ8NlTUzkbuW8kIzGJUi3cxjFkEcMZ5h/8FsKWD/VcouZl4yo1F7B6g==,
++      }
++    cpu: [arm64]
++    os: [win32]
++
++  "@pagefind/windows-x64@1.5.2":
++    resolution:
++      {
++        integrity: sha512-Fa2Iyw7kaDRzGMfNYNUXNW2zbL5FQVDgSOcbDHdzBrDEdpqOqg8TcZ68F22ol6NJ9IGzvUdmeyZypLW5dyhqsg==,
+       }
+     cpu: [x64]
+     os: [win32]
+@@ -3928,10 +3944,10 @@ packages:
+         integrity: sha512-ZsEbbZORsyHuO00lY1kV3/t72yp6Ysay6Pd17ZAlNGuGwmWDLCJxFpRs0IzfXfj1o4icJOkUEioexFHzyPurSQ==,
+       }
+ 
+-  pagefind@1.3.0:
++  pagefind@1.5.2:
+     resolution:
+       {
+-        integrity: sha512-8KPLGT5g9s+olKMRTU9LFekLizkVIu9tes90O1/aigJ0T5LmyPqTzGJrETnSw3meSYg58YH7JTzhTTW/3z6VAw==,
++        integrity: sha512-XTUaK0hXMCu2jszWE584JGQT7y284TmMV9l/HX3rnG5uo3rHI/uHU56XTyyyPFjeWEBxECbAi0CaFDJOONtG0Q==,
+       }
+     hasBin: true
+ 
+@@ -5582,7 +5598,7 @@ snapshots:
+       "@astrojs/markdown-remark": 6.3.6
+       "@astrojs/mdx": 4.3.4(astro@5.13.2(@types/node@24.3.0)(rollup@4.46.3)(typescript@5.9.2)(yaml@2.8.1))
+       "@astrojs/sitemap": 3.5.0
+-      "@pagefind/default-ui": 1.3.0
++      "@pagefind/default-ui": 1.5.2
+       "@types/hast": 3.0.4
+       "@types/js-yaml": 4.0.9
+       "@types/mdast": 4.0.4
+@@ -5599,7 +5615,7 @@ snapshots:
+       mdast-util-directive: 3.1.0
+       mdast-util-to-markdown: 2.1.2
+       mdast-util-to-string: 4.0.0
+-      pagefind: 1.3.0
++      pagefind: 1.5.2
+       rehype: 13.0.2
+       rehype-format: 5.0.1
+       remark-directive: 3.0.1
+@@ -6079,21 +6095,27 @@ snapshots:
+ 
+   "@oslojs/encoding@1.1.0": {}
+ 
+-  "@pagefind/darwin-arm64@1.3.0":
++  "@pagefind/darwin-arm64@1.5.2":
+     optional: true
+ 
+-  "@pagefind/darwin-x64@1.3.0":
++  "@pagefind/darwin-x64@1.5.2":
+     optional: true
+ 
+-  "@pagefind/default-ui@1.3.0": {}
++  "@pagefind/default-ui@1.5.2": {}
+ 
+-  "@pagefind/linux-arm64@1.3.0":
++  "@pagefind/freebsd-x64@1.5.2":
+     optional: true
+ 
+-  "@pagefind/linux-x64@1.3.0":
++  "@pagefind/linux-arm64@1.5.2":
+     optional: true
+ 
+-  "@pagefind/windows-x64@1.3.0":
++  "@pagefind/linux-x64@1.5.2":
++    optional: true
++
++  "@pagefind/windows-arm64@1.5.2":
++    optional: true
++
++  "@pagefind/windows-x64@1.5.2":
+     optional: true
+ 
+   "@pkgjs/parseargs@0.11.0":
+@@ -8193,13 +8215,15 @@ snapshots:
+ 
+   package-manager-detector@1.3.0: {}
+ 
+-  pagefind@1.3.0:
++  pagefind@1.5.2:
+     optionalDependencies:
+-      "@pagefind/darwin-arm64": 1.3.0
+-      "@pagefind/darwin-x64": 1.3.0
+-      "@pagefind/linux-arm64": 1.3.0
+-      "@pagefind/linux-x64": 1.3.0
+-      "@pagefind/windows-x64": 1.3.0
++      "@pagefind/darwin-arm64": 1.5.2
++      "@pagefind/darwin-x64": 1.5.2
++      "@pagefind/freebsd-x64": 1.5.2
++      "@pagefind/linux-arm64": 1.5.2
++      "@pagefind/linux-x64": 1.5.2
++      "@pagefind/windows-arm64": 1.5.2
++      "@pagefind/windows-x64": 1.5.2
+ 
+   pako@0.2.9: {}
+ 
+diff --git a/public/pagefind-merge.js b/public/pagefind-merge.js
+new file mode 100644
+index 0000000..98d4167
+--- /dev/null
++++ b/public/pagefind-merge.js
+@@ -0,0 +1,133 @@
++// Cross-site search: merges the valkey.io, Valkey Admin and Spring Data Valkey Pagefind indexes into this site's search.
++//
++// Why not Starlight's `pagefind.mergeIndex` setting: Pagefind then stops the whole search box (this site's results
++// too) if any merged index is missing, unreachable, or built with an incompatible Pagefind version (Pagefind issue #887).
++// Instead, this script reads each other site's index first, and merges it only if it is readable and was built with
++// the same major.minor Pagefind version as this site's index.
++//
++// Pagefind can only merge an index built with the same major.minor version as this page's Pagefind. Each site
++// therefore also publishes copies of its index for every minor version from the oldest one any site runs up to the
++// newest release, at /pagefind/v<major.minor>/ (built by pagefind-federation.sh). This script uses a site's main index
++// when the versions match, and that copy otherwise.
++//
++// It merges into the pagefind.js module that the search box itself imports (/pagefind/pagefind.js), so the search box
++// searches the merged indexes. All four Valkey sites (valkey.io, GLIDE, Valkey Admin, Spring Data Valkey) use the same script with different settings.
++// This site's own index, and the other Valkey sites' indexes. pagefind-federation.sh reads both lines.
++const thisSiteIndex = "https://glide.valkey.io/pagefind/";
++const otherSites = [
++  "https://valkey.io/pagefind/",
++  "https://valkey-admin.valkey.io/pagefind/",
++  "https://spring.valkey.io/pagefind/",
++];
++const searchBox = "#starlight__search";
++// Ranking settings for every index this site searches, its own included (astro.config.mjs imports it for Starlight's `pagefind.ranking`).
++// All sites must use the same values, so a query ranks the same everywhere. The values are Starlight's defaults.
++export const ranking = {
++  pageLength: 0.1,
++  termFrequency: 0.1,
++  termSaturation: 2,
++  termSimilarity: 9,
++};
++// The search box sets a 12-word excerpt on this site's index only; merged indexes would default to 30.
++const excerptLength = 12;
++// Every search waits for every merged index, so a site that answers much more slowly than this one would slow down
++// every search. Such a site is left out for this page view. A slow network slows both, so they still merge.
++const slowSiteFactor = 3;
++const slowSiteAllowanceMs = 2000;
++// Stop waiting for a site that doesn't answer at all.
++const giveUpAfterMs = 30000;
++
++// Reads an index's entry file and the metadata file the entry names. Returns the major.minor Pagefind version
++// (null if either read fails) and how long the reads took. Reading the metadata file catches an entry that names
++// files a newer deploy has removed, and leaves the file in the HTTP cache for Pagefind.
++async function readIndex(bundlePath) {
++  const started = performance.now();
++  const elapsed = () => performance.now() - started;
++  try {
++    const signal = AbortSignal.timeout(giveUpAfterMs);
++    const response = await fetch(bundlePath + "pagefind-entry.json", {
++      signal,
++    });
++    if (!response.ok) return { version: null, ms: elapsed() };
++    const entry = await response.json();
++    const languages = entry.languages || {};
++    const language =
++      languages[document.documentElement.lang] || Object.values(languages)[0];
++    if (!entry.version || !language) return { version: null, ms: elapsed() };
++    const meta = await fetch(`${bundlePath}pagefind.${language.hash}.pf_meta`, {
++      signal,
++    });
++    if (!meta.ok) return { version: null, ms: elapsed() };
++    return {
++      version: entry.version.split(".").slice(0, 2).join("."),
++      ms: elapsed(),
++    };
++  } catch {
++    return { version: null, ms: elapsed() };
++  }
++}
++
++// A site merged after the visitor has typed a query: run the query again so that site's results appear.
++// The search box only searches when the text changes, so the text is changed and changed back.
++function searchAgain() {
++  const input = document.querySelector(`${searchBox} input`);
++  if (!input || !input.value) return;
++  const query = input.value;
++  input.value = query + " ";
++  input.dispatchEvent(new Event("input", { bubbles: true }));
++  input.value = query;
++  input.dispatchEvent(new Event("input", { bubbles: true }));
++}
++
++// Finds the other site's index built with this site's Pagefind version: its main index if the versions match,
++// otherwise its copy for this version. Returns the bundle to merge (null if there is none) and how long the reads took.
++async function findCompatibleIndex(bundlePath, ownVersion) {
++  const main = await readIndex(bundlePath);
++  if (ownVersion !== null && main.version === ownVersion)
++    return { bundle: bundlePath, version: main.version, ms: main.ms };
++  if (ownVersion === null || main.version === null)
++    return { bundle: null, version: main.version, ms: main.ms };
++  const copy = await readIndex(`${bundlePath}v${ownVersion}/`);
++  const bundle =
++    copy.version === ownVersion ? `${bundlePath}v${ownVersion}/` : null;
++  return { bundle, version: main.version, ms: main.ms + copy.ms };
++}
++
++async function mergeOtherSites() {
++  const ownIndex = Promise.all([
++    import("/pagefind/pagefind.js"),
++    readIndex("/pagefind/"),
++  ]);
++  await Promise.all(
++    otherSites.map(async (bundlePath) => {
++      const [pagefind, own] = await ownIndex;
++      const other = await findCompatibleIndex(bundlePath, own.version);
++      if (other.bundle === null) {
++        console.warn(
++          `Search: not merging ${bundlePath} (index version ${other.version}, no copy for this site's ${own.version})`,
++        );
++        return;
++      }
++      if (other.ms > own.ms * slowSiteFactor + slowSiteAllowanceMs) {
++        console.warn(
++          `Search: not merging ${bundlePath} (answered in ${Math.round(other.ms)} ms, this site in ${Math.round(own.ms)} ms)`,
++        );
++        return;
++      }
++      await pagefind.mergeIndex(other.bundle, { ranking, excerptLength });
++      searchAgain();
++    }),
++  );
++}
++
++// Start when the visitor first focuses or types into the search box; the search box loads Pagefind then too.
++let merging = null;
++function startMerging(event) {
++  if (merging || !event.target.closest?.(searchBox)) return;
++  merging = mergeOtherSites();
++}
++// Only in a browser: astro.config.mjs imports `ranking` from this file in Node, where there is no document.
++if (typeof document !== "undefined") {
++  document.addEventListener("focusin", startMerging, true);
++  document.addEventListener("input", startMerging, true);
++}
+diff --git a/scripts/pagefind-federation.sh b/scripts/pagefind-federation.sh
+new file mode 100755
+index 0000000..a65dfb4
+--- /dev/null
++++ b/scripts/pagefind-federation.sh
+@@ -0,0 +1,253 @@
++#!/usr/bin/env bash
++# Keeps this site's search index mergeable by every other Valkey site, whichever Pagefind version each one runs.
++#
++# Pagefind can only merge an index built with the same major.minor version as the page searching it (1.5 changed
++# the index format, and Pagefind makes no compatibility promise across versions). So next to its own index
++# (/pagefind/), each site publishes copies built with other Pagefind versions, at /pagefind/v<major.minor>/:
++# one for every minor release from the oldest version any site runs (the floor, this site included) up to the
++# newest release, each built with that minor's newest patch. pagefind-merge.js uses another site's main index
++# when the minor versions match, and that site's copy otherwise.
++#
++# Why that range: a site that stays on the floor can merge everyone; a site can upgrade to any version from the floor
++# to the newest (all at once or one minor at a time) and find every other site ready; and once no site runs an old
++# version, the floor moves up and the next build stops publishing it. The versions come from the other sites' live
++# indexes and Pagefind's GitHub releases at build time, so nothing is listed by hand.
++#
++# If another site can't be reached, the copies this site published last time are kept, so a network failure can't drop
++# a copy someone uses. If a copy for a version another site runs can't be built, the script fails and the deploy keeps
++# the previous site. A copy nobody uses yet that can't be built is only a warning.
++#
++# A build that changes this site's Pagefind major.minor fails while another site serves no index for the new version,
++# because this site's search would leave that site out until it redeploys. The error names the sites. To deploy anyway,
++# add "<host> <major.minor>" lines to pagefind-federation-skip.txt next to this script (for example
++# "spring.valkey.io 1.6"). A line only applies to the change to that version, so a forgotten one does no harm later.
++#
++# Usage:
++#   pagefind-federation.sh build <site-dir> <pagefind-merge.js>
++#       After the site's own Pagefind index is in <site-dir>/pagefind/. Run from the directory Pagefind normally runs in
++#       (valkey.io: the repo root, where pagefind.yml is), so the copies use the same settings.
++#   pagefind-federation.sh ready <pagefind-merge.js> <pagefind-version>
++#       The version-change check alone, for pull requests on repos that don't build the site on pull requests.
++# Needs bash, curl, jq, tar and sha256sum. GITHUB_TOKEN (optional) raises the GitHub API rate limit for the release list.
++# CURL_ARGS adds curl options (local tests only). PAGEFIND_CACHE keeps downloaded binaries.
++set -euo pipefail
++shopt -s inherit_errexit  # a failed download inside $(...) stops the script too
++
++fetch() {
++  # shellcheck disable=SC2086  # CURL_ARGS is a list of options
++  curl -fsS --max-time 20 ${CURL_ARGS:-} "$1"
++}
++major_minor() { cut -d. -f1-2 <<< "$1"; }
++is_newer() { [ "$1" != "$2" ] && [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | tail -1)" = "$1" ]; }
++oldest() { printf '%s\n' "$@" | sort -V | head -1; }
++SKIP_FILE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/pagefind-federation-skip.txt"
++host_of() { sed -E 's#https://([^/]+)/.*#\1#' <<< "$1"; }
++this_site_index() { tr -d '\n' < "$1" | grep -Eo 'thisSiteIndex = +"https://[^"]+"' | cut -d'"' -f2; }
++# The otherSites array may span several lines (prettier), so it is read with newlines removed.
++other_site_indexes() { tr -d '\n' < "$1" | grep -Eo 'const otherSites = \[[^]]*\]' | grep -Eo 'https://[A-Za-z0-9.-]+/pagefind/'; }
++# Only plain release versions are accepted, since another site's version decides which Pagefind release is downloaded.
++plain_version() { jq -er '.version | select(test("^[0-9]+\\.[0-9]+\\.[0-9]+$"))' 2>/dev/null; }
++live_version() { fetch "${1}pagefind-entry.json" 2>/dev/null | plain_version; }
++# Pagefind's releases, from the same GitHub releases the binaries come from (drafts and pre-releases excluded).
++# The newest 100 are listed, which today is all of them. GITHUB_TOKEN, if set, lifts the 60-an-hour anonymous limit.
++release_versions() {
++  local auth=()
++  if [ -n "${GITHUB_TOKEN:-}" ]; then auth=(-H "Authorization: Bearer ${GITHUB_TOKEN}"); fi
++  # shellcheck disable=SC2086  # CURL_ARGS is a list of options
++  curl -fsS --max-time 20 ${CURL_ARGS:-} "${auth[@]}" "https://api.github.com/repos/Pagefind/pagefind/releases?per_page=100" 2>/dev/null |
++    jq -r '.[] | select(.draft == false and .prerelease == false) | .tag_name | ltrimstr("v") | select(test("^[0-9]+\\.[0-9]+\\.[0-9]+$"))'
++}
++# Fallback when the release list can't be read: the newest release only. /releases/latest redirects to /releases/tag/v<version>.
++newest_release() {
++  local tag
++  # shellcheck disable=SC2086  # CURL_ARGS is a list of options
++  tag=$(curl -fsS --max-time 20 ${CURL_ARGS:-} -o /dev/null -w '%{redirect_url}' https://github.com/Pagefind/pagefind/releases/latest 2>/dev/null) || return 1
++  jq -n --arg v "${tag##*/v}" '{version: $v}' | plain_version
++}
++# More copies than this means something is wrong (a few minor releases a year is normal): the oldest unused ones are left out.
++MAX_COPIES=8
++
++# Prints each other site that serves no index for major.minor $2, neither as its main index nor as a copy.
++sites_without_index() {
++  local merge_script=$1 mm=$2 version
++  for index in $(other_site_indexes "$merge_script"); do
++    version=$(live_version "$index" || true)
++    if [ -n "$version" ] && [ "$(major_minor "$version")" = "$mm" ]; then continue; fi
++    if live_version "${index}v${mm}/" > /dev/null; then continue; fi
++    echo "$index"
++  done
++}
++
++# Fails when building with Pagefind $2 changes this site's live major.minor and another site has no index for the new one.
++version_change_gate() {
++  local merge_script=$1 new_version=$2 self live new_mm missing=() skipped=0 version
++  self=$(this_site_index "$merge_script")
++  new_mm=$(major_minor "$new_version")
++  if ! live=$(live_version "$self"); then
++    echo "${self} isn't live yet or can't be read; no version change to check."
++    return 0
++  fi
++  if [ "$(major_minor "$live")" = "$new_mm" ]; then return 0; fi
++  for index in $(sites_without_index "$merge_script" "$new_mm"); do
++    if [ -f "$SKIP_FILE" ] && grep -qxE "[[:space:]]*$(host_of "$index")[[:space:]]+${new_mm//./\\.}[[:space:]]*" "$SKIP_FILE"; then
++      echo "::warning::$(host_of "$index") has no Pagefind ${new_mm} index; leaving it out of this site's search ($(basename "$SKIP_FILE"))."
++      skipped=1
++    else
++      missing+=("$(host_of "$index")")
++    fi
++  done
++  if [ "${#missing[@]}" -eq 0 ]; then
++    if [ "$skipped" = 1 ]; then
++      echo "Pagefind ${live} -> ${new_version}: every other site not in $(basename "$SKIP_FILE") serves a ${new_mm} index."
++    else
++      echo "Pagefind ${live} -> ${new_version}: every other site already serves a ${new_mm} index."
++    fi
++    return 0
++  fi
++  local versions=("$live") floor redeploy
++  for index in $(other_site_indexes "$merge_script"); do
++    if version=$(live_version "$index"); then versions+=("$version"); fi
++  done
++  floor=$(oldest "${versions[@]}")
++  if [ "$new_mm" != "$(major_minor "$floor")" ] && [ "$(oldest "$new_mm" "$(major_minor "$floor")")" = "$new_mm" ]; then
++    # Below every version in use: the other sites' builds don't publish copies for it, so redeploying them doesn't help.
++    redeploy="  - pick Pagefind ${floor} or later (the oldest version a Valkey site runs), which the other sites publish copies for; or"
++  else
++    redeploy="  - redeploy ${missing[*]} first (their next deploy adds a ${new_mm} copy automatically), wait about 10 minutes for the CDN, then re-run this build; or"
++  fi
++  cat >&2 << EOF
++::error::This change moves this site from Pagefind ${live} to ${new_version}. These sites serve no Pagefind ${new_mm} index yet: ${missing[*]}.
++Deployed now, this site's search would leave them out. Either:
++${redeploy}
++  - keep Pagefind ${live} for now (hold back the change); or
++  - to deploy anyway, add these lines to $(basename "$SKIP_FILE") next to this script:
++$(for host in "${missing[@]}"; do echo "      ${host} ${new_mm}"; done)
++EOF
++  return 1
++}
++
++pagefind_binary() {
++  local version=$1 arch cache asset url
++  case $(uname -m) in x86_64) arch=x86_64 ;; aarch64 | arm64) arch=aarch64 ;; *) echo "unsupported CPU $(uname -m)" >&2; return 1 ;; esac
++  cache=${PAGEFIND_CACHE:-$(mktemp -d)}/$version
++  if [ ! -x "$cache/pagefind" ]; then
++    asset="pagefind-v${version}-${arch}-unknown-linux-musl.tar.gz"
++    url="https://github.com/Pagefind/pagefind/releases/download/v${version}/${asset}"
++    mkdir -p "$cache"
++    curl -fsSL "$url" -o "$cache/$asset" || { echo "::error::can't download Pagefind ${version} (${url})" >&2; return 1; }
++    curl -fsSL "$url.sha256" -o "$cache/$asset.sha256"
++    (cd "$cache" && sha256sum -c --quiet "$asset.sha256")
++    tar -xzf "$cache/$asset" -C "$cache"
++  fi
++  echo "$cache/pagefind"
++}
++
++# Builds a copy of the site's index with Pagefind $2 at <site-dir>/pagefind/v<major.minor>/.
++build_copy() {
++  local site_dir=$1 version=$2 mm bin log
++  mm=$(major_minor "$version")
++  log="$site_dir/pagefind-v${mm}.log"
++  bin=$(pagefind_binary "$version")
++  echo "Building a Pagefind ${version} copy of this site's index at pagefind/v${mm}/"
++  if ! "$bin" --site "$site_dir" --output-path "$site_dir/pagefind/v${mm}" > "$log" 2>&1; then
++    cat "$log" >&2
++    rm -rf "$log" "$site_dir/pagefind/v${mm}"
++    return 1
++  fi
++  grep -E "Indexed [0-9]+ pages" "$log" || true
++  rm -f "$log"
++}
++
++# Prints the copies this site should publish, one "<major.minor> <version> <needed|ahead>" line each:
++# "needed" for a minor another site runs (its search uses the copy), "ahead" for the other minors from the floor to the newest release.
++# $3 is extra "in use" versions (the copies published last time, when another site can't be read).
++desired_copies() {
++  local merge_script=$1 own_version=$2 kept=$3 own_mm version mm floor releases newest newest_mm
++  own_mm=$(major_minor "$own_version")
++  declare -A in_use=() build_with=()
++  for index in $(other_site_indexes "$merge_script"); do
++    version=$(live_version "$index") || continue
++    mm=$(major_minor "$version")
++    if [ -z "${in_use[$mm]:-}" ] || is_newer "$version" "${in_use[$mm]}"; then in_use[$mm]=$version; fi
++  done
++  for version in $kept; do
++    mm=$(major_minor "$version")
++    [ -n "${in_use[$mm]:-}" ] || in_use[$mm]=$version
++  done
++  # shellcheck disable=SC2068  # the values are plain versions
++  floor=$(oldest "$own_version" ${in_use[@]})
++
++  if ! releases=$(release_versions) || [ -z "$releases" ]; then
++    echo "::warning::couldn't read Pagefind's release list from GitHub; publishing copies for the versions in use and the newest release only." >&2
++    releases=$(newest_release || true)
++  fi
++  newest=$(printf '%s\n' "$own_version" "$releases" | sort -V | tail -1)
++  newest_mm=$(major_minor "$newest")
++  for version in $releases; do
++    mm=$(major_minor "$version")
++    [ "$(oldest "$mm" "$(major_minor "$floor")")" = "$(major_minor "$floor")" ] || continue  # below the floor
++    [ "$(oldest "$mm" "$newest_mm")" = "$mm" ] || continue                                 # above the newest
++    if [ -z "${build_with[$mm]:-}" ] || is_newer "$version" "${build_with[$mm]}"; then build_with[$mm]=$version; fi
++  done
++  for mm in "${!in_use[@]}"; do
++    [ -n "${build_with[$mm]:-}" ] || build_with[$mm]=${in_use[$mm]}
++  done
++  unset "build_with[$own_mm]"
++  for mm in "${!build_with[@]}"; do
++    if [ -n "${in_use[$mm]:-}" ]; then echo "$mm ${build_with[$mm]} needed"; else echo "$mm ${build_with[$mm]} ahead"; fi
++  done | sort -V
++}
++
++build() {
++  local site_dir=$1 merge_script=$2 own_version own_mm self version kept="" copies=() lines mm kind ahead_count
++  own_version=$(jq -r .version "$site_dir/pagefind/pagefind-entry.json")
++  own_mm=$(major_minor "$own_version")
++  self=$(this_site_index "$merge_script")
++  if [ -z "$self" ] || [ -z "$(other_site_indexes "$merge_script")" ]; then
++    echo "::error::no thisSiteIndex or otherSites found in $merge_script" >&2
++    exit 1
++  fi
++  version_change_gate "$merge_script" "$own_version" || exit 1
++
++  for index in $(other_site_indexes "$merge_script"); do
++    if version=$(live_version "$index"); then
++      echo "other site: ${index} runs Pagefind ${version}"
++    else
++      echo "::warning::${index} can't be read; keeping the copies this site published last time"
++      kept=$(fetch "${self}federation.json" 2>/dev/null | jq -r '.copies[]' 2>/dev/null || true)
++    fi
++  done
++
++  lines=$(desired_copies "$merge_script" "$own_version" "$kept")
++  if [ "$(grep -c needed <<< "$lines" || true)" -gt "$MAX_COPIES" ]; then
++    echo "::error::the other sites run more than ${MAX_COPIES} Pagefind minor versions: $(grep needed <<< "$lines" | cut -d' ' -f2 | tr '\n' ' ')" >&2
++    exit 1
++  fi
++  ahead_count=$(( MAX_COPIES - $(grep -c needed <<< "$lines" || true) ))
++  # Keep the newest "ahead" copies when there are too many; the oldest are the least likely upgrade targets.
++  lines=$( { grep needed <<< "$lines" || true; grep ahead <<< "$lines" | tail -n "$ahead_count" || true; } | sort -V)
++  while read -r mm version kind; do
++    [ -n "$mm" ] || continue
++    if build_copy "$site_dir" "$version"; then
++      copies+=("$version")
++    elif [ "$kind" = needed ]; then
++      exit 1
++    else
++      echo "::warning::couldn't build a Pagefind ${version} copy, which no site uses yet; a site moving to ${mm} will wait for this site's next deploy."
++    fi
++  done <<< "$lines"
++
++  jq -n --arg version "$own_version" '{version: $version, copies: $ARGS.positional}' --args "${copies[@]}" > "$site_dir/pagefind/federation.json"
++  echo "This site's index: Pagefind ${own_version}; copies for other versions: ${copies[*]:-none}"
++
++  # Sites this site's search leaves out after this deploy, e.g. a site that doesn't run this script.
++  for index in $(sites_without_index "$merge_script" "$own_mm"); do
++    echo "::warning::${index} has no Pagefind ${own_mm} index, so this site's search leaves it out."
++  done
++}
++
++case ${1:-} in
++  build) build "$2" "$3" ;;
++  ready) version_change_gate "$2" "$3" ;;
++  *) echo "usage: $0 build <site-dir> <pagefind-merge.js> | ready <pagefind-merge.js> <version>" >&2; exit 2 ;;
++esac

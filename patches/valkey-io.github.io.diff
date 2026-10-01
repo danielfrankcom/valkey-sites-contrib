@@ -1,14 +1,17 @@
 diff --git a/.github/workflows/zola-deploy.yml b/.github/workflows/zola-deploy.yml
-index 9e39ec3..6ec868b 100644
+index 9e39ec3..a8f1f8a 100644
 --- a/.github/workflows/zola-deploy.yml
 +++ b/.github/workflows/zola-deploy.yml
-@@ -70,6 +70,13 @@ jobs:
+@@ -70,6 +70,16 @@ jobs:
            BUILD_ONLY: true
            BUILD_THEMES: false
  
 +      - name: Build search index
 +        working-directory: website
-+        run: ./build/pagefind-step.sh
++        # The Zola action runs in a container as root, so public/ belongs to root and Pagefind couldn't write to it.
++        run: |
++          sudo chown -R "$(id -u):$(id -g)" public
++          ./build/pagefind-step.sh
 +        env:
 +          # Lifts the anonymous GitHub API limit when pagefind-federation.sh lists Pagefind releases.
 +          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

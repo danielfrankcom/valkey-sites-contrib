@@ -64,11 +64,14 @@ jobs:
           BUILD_ONLY: true
           BUILD_THEMES: false
 
-      # The Zola action runs in a container as root, so public/ belongs to root.
-      - name: Move the site under its demo path
-        run: sudo python3 demo/rebase.py sites/valkey-io.github.io/public "$DEMO_PATH/valkey-io"
+      # As in the proposed zola-deploy.yml step: the Zola action runs in a container as root, so public/ belongs to root.
+      - name: Take ownership of the built site
+        run: sudo chown -R "$(id -u):$(id -g)" sites/valkey-io.github.io/public
 
-      # The proposed step, as patches/valkey-io.github.io.diff adds it to zola-deploy.yml.
+      - name: Move the site under its demo path
+        run: python3 demo/rebase.py sites/valkey-io.github.io/public "$DEMO_PATH/valkey-io"
+
+      # The rest of the proposed step (patches/valkey-io.github.io.diff adds it to zola-deploy.yml).
       - name: Build search index
         working-directory: sites/valkey-io.github.io
         run: ./build/pagefind-step.sh

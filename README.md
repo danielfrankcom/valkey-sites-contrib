@@ -17,7 +17,8 @@ It isn't an official Valkey project, and nothing here is upstream.
 Each site keeps its own [Pagefind](https://pagefind.app/) index, built in its own deploy workflow.
 A small script on each site merges the other sites' indexes into its search box,
 and skips any site whose index is missing, slow, or built with an incompatible Pagefind version.
-Each result is labelled with its site, and a site filter lists all four sites, in alphabetical order on every site.
+Each result is labelled with its site. Above the results, a row of buttons ("All sites", then each site in alphabetical order,
+with result counts) narrows the results to one site; it replaces Pagefind's filter panel.
 The docs sites count the other sites' results at a tenth of their own, so their own pages come first for most queries.
 valkey.io counts every site the same.
 
@@ -69,9 +70,9 @@ The sites' content is pinned too: valkey.io's build reads `valkey-doc`, `valkey`
 
 ## Known limitations
 
-- **One site at a time in the site filter.** Pagefind's default UI, which Starlight also uses, combines filter values with AND
-  ([Pagefind #594](https://github.com/Pagefind/pagefind/issues/594)). Each page belongs to one site, so ticking a second site shows no results.
-  Picking several sites at once needs a custom search UI.
+- **One site at a time.** Pagefind's default UI, which Starlight also uses, combines filter values with AND
+  ([Pagefind #594](https://github.com/Pagefind/pagefind/issues/594)), and each page belongs to one site, so the site buttons pick one site
+  at a time. Picking several sites together would need a custom search UI.
 - **Searches for a site's own name.** Pagefind scores each index on its own, so a word on nearly every page of one site, like
   "spring" on Spring Data Valkey, counts for little in that site's index. A query like `spring data` can rank other sites' pages first.
 

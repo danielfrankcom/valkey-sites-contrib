@@ -1,8 +1,8 @@
 diff --git a/sass/_valkey.scss b/sass/_valkey.scss
-index 5e44681..240cba3 100644
+index 5e44681..061cb6e 100644
 --- a/sass/_valkey.scss
 +++ b/sass/_valkey.scss
-@@ -2718,3 +2718,345 @@ blockquote {
+@@ -2718,3 +2718,337 @@ blockquote {
    .calendar-day { min-height: 40px; font-size: 1.1rem; }
    .calendar-nav .calendar-nav-title { font-size: 1.8rem; min-width: auto; }
  }
@@ -339,14 +339,6 @@ index 5e44681..240cba3 100644
 +    padding: var(--sl-search-result-nested-pad-block) var(--sl-search-result-pad-inline-end);
 +  }
 +
-+  // Not in Starlight's rules: an excerpt directly under a page title, which Pagefind shows when no section of the page
-+  // matches (blog posts, here). Give it the title's background and indent, so it reads as part of the same card.
-+  .pagefind-ui__result-inner > .pagefind-ui__result-excerpt {
-+    margin-top: 0;
-+    background-color: var(--sl-color-black);
-+    padding: 0 var(--sl-search-result-pad-inline-end) var(--sl-search-result-pad-block);
-+    padding-inline-start: var(--sl-search-result-pad-inline-start);
-+  }
 +}
 diff --git a/static/site-search.js b/static/site-search.js
 new file mode 100644

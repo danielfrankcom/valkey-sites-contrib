@@ -411,10 +411,10 @@ index 0000000..3271107
 +glob: "**/index.html"
 diff --git a/static/pagefind-merge.js b/static/pagefind-merge.js
 new file mode 100644
-index 0000000..1016679
+index 0000000..e22cc3f
 --- /dev/null
 +++ b/static/pagefind-merge.js
-@@ -0,0 +1,143 @@
+@@ -0,0 +1,229 @@
 +// Cross-site search: merges the GLIDE, Valkey Admin and Spring Data Valkey Pagefind indexes into this site's search.
 +//
 +// Why not PagefindUI's `mergeIndex` option: Pagefind then stops the whole search box (this site's results
@@ -511,26 +511,109 @@ index 0000000..1016679
 +      // Load the merged index's filter values now. The search box read the filter list before this merge, so the site
 +      // filter would otherwise list only this site until a visitor picks a filter.
 +      await pagefind.filters();
++      mergedSites++;
 +      searchAgain();
 +    }),
 +  );
 +}
 +
-+// The site filter lists sites in the order their indexes finished merging, which changes between page views.
-+// List them alphabetically instead, the same on every site. CSS `order` leaves the elements where the search box
-+// put them, so the search box can keep updating them.
-+function sortSiteFilter() {
-+  const values = [...document.querySelectorAll(`${searchBox} .pagefind-ui__filter-value`)].filter((value) =>
-+    value.querySelector('input[name="site"]'),
++// Site filter: a row of buttons above the results, "All sites" and then each site alphabetically, with one picked at a time.
++// It replaces Pagefind's filter panel, which needs a second column the search modal is too narrow for, and whose
++// checkboxes suggest several sites can be picked together: Pagefind's search box combines picked values with AND, and a
++// page belongs to one site. The buttons tick the panel's hidden checkboxes, so the search box still does the filtering.
++// The counts come from the same query without a site picked, so every button keeps its count while another is picked.
++const siteFilterStyle = `
++${searchBox} .pagefind-ui__filter-panel { display: none !important; }
++${searchBox} .site-filter { display: flex; flex-wrap: wrap; gap: calc(10px * var(--pagefind-ui-scale)); margin-top: calc(20px * var(--pagefind-ui-scale)); }
++${searchBox} .site-filter[hidden] { display: none; }
++${searchBox} .site-filter button {
++  font: inherit; font-size: calc(15px * var(--pagefind-ui-scale)); line-height: 1.4; cursor: pointer;
++  padding: calc(6px * var(--pagefind-ui-scale)) calc(16px * var(--pagefind-ui-scale)); border-radius: 999px;
++  border: var(--pagefind-ui-border-width) solid var(--pagefind-ui-border);
++  background: var(--pagefind-ui-background); color: var(--pagefind-ui-text);
++}
++${searchBox} .site-filter button:hover { border-color: var(--pagefind-ui-primary); }
++${searchBox} .site-filter button[aria-pressed="true"] {
++  background: var(--pagefind-ui-primary); border-color: var(--pagefind-ui-primary); color: var(--pagefind-ui-background);
++}
++${searchBox} .site-filter .site-filter-count { margin-inline-start: 0.4em; opacity: 0.75; }
++/* A page's own excerpt, shown under its title when the part of the page before its first heading matches: keep it in
++   the title's card, with the title's indent, rather than as a separate strip. */
++${searchBox} .pagefind-ui__result-inner > .pagefind-ui__result-title + .pagefind-ui__result-excerpt {
++  margin-top: -1px; background-color: var(--pagefind-ui-background);
++  padding: 0 var(--sl-search-result-pad-inline-end, 0) var(--sl-search-result-pad-block, 0);
++  padding-inline-start: var(--sl-search-result-pad-inline-start, 0);
++}
++`;
++let mergedSites = 0;
++let countedQuery = null;
++let siteCounts = {};
++
++function siteCheckboxes() {
++  return [...document.querySelectorAll(`${searchBox} input.pagefind-ui__filter-checkbox[name="site"]`)];
++}
++
++function pickSite(site) {
++  for (const checkbox of siteCheckboxes()) {
++    const shouldBeTicked = checkbox.value === site;
++    if (checkbox.checked !== shouldBeTicked) checkbox.click();
++  }
++}
++
++function siteButton(site, label, count, picked) {
++  const button = document.createElement("button");
++  button.type = "button";
++  button.setAttribute("aria-pressed", String(picked));
++  button.append(label);
++  const countLabel = document.createElement("span");
++  countLabel.className = "site-filter-count";
++  countLabel.textContent = String(count);
++  button.append(countLabel);
++  button.addEventListener("click", () => pickSite(site));
++  return button;
++}
++
++function drawSiteFilter() {
++  const drawer = document.querySelector(`${searchBox} .pagefind-ui__drawer`);
++  if (!drawer) return;
++  let bar = drawer.parentElement.querySelector(":scope > .site-filter");
++  if (!bar) {
++    bar = document.createElement("div");
++    bar.className = "site-filter";
++    bar.setAttribute("role", "group");
++    bar.setAttribute("aria-label", "Filter by site");
++    drawer.before(bar);
++  }
++  const picked = siteCheckboxes().find((checkbox) => checkbox.checked)?.value ?? null;
++  const showing = !drawer.classList.contains("pagefind-ui__hidden") && Object.keys(siteCounts).length > 1;
++  const state = JSON.stringify([showing, picked, siteCounts]);
++  if (bar.dataset.state === state) return;
++  bar.dataset.state = state;
++  bar.hidden = !showing;
++  const sites = Object.keys(siteCounts).sort((a, b) => a.localeCompare(b));
++  const total = sites.reduce((sum, site) => sum + siteCounts[site], 0);
++  bar.replaceChildren(
++    siteButton(null, "All sites", total, picked === null),
++    ...sites.map((site) => siteButton(site, site, siteCounts[site], picked === site)),
 +  );
-+  if (values.length === 0) return;
-+  values[0].parentElement.style.display = "flex";
-+  values[0].parentElement.style.flexDirection = "column";
-+  const siteOf = (value) => value.querySelector("input").value;
-+  values.sort((a, b) => siteOf(a).localeCompare(siteOf(b)));
-+  values.forEach((value, i) => {
-+    value.style.order = String(i + 1);
-+  });
++}
++
++// Runs whenever the search box redraws: counts the sites again when the query or the set of merged sites has changed.
++function onSearchBoxChange() {
++  const term = document.querySelector(`${searchBox} .pagefind-ui__search-input`)?.value.trim() ?? "";
++  const query = `${term}\n${mergedSites}`;
++  if (term && query !== countedQuery) {
++    countedQuery = query;
++    import("/pagefind/pagefind.js")
++      .then((pagefind) => pagefind.search(term))
++      .then((result) => {
++        if (countedQuery !== query) return;
++        siteCounts = result.totalFilters?.site ?? result.filters?.site ?? {};
++        drawSiteFilter();
++      })
++      .catch(() => {});
++  }
++  drawSiteFilter();
 +}
 +
 +// Start when the visitor first focuses or types into the search box; the search box loads Pagefind then too.
@@ -543,9 +626,12 @@ index 0000000..1016679
 +if (typeof document !== "undefined") {
 +  document.addEventListener("focusin", startMerging, true);
 +  document.addEventListener("input", startMerging, true);
-+  // The search box redraws the filter list after every search.
++  // The site filter: its styles, and a redraw whenever the search box redraws.
++  const style = document.createElement("style");
++  style.textContent = siteFilterStyle;
++  document.head.append(style);
 +  const searchBoxElement = document.querySelector(searchBox);
-+  if (searchBoxElement) new MutationObserver(sortSiteFilter).observe(searchBoxElement, { childList: true, subtree: true });
++  if (searchBoxElement) new MutationObserver(onSearchBoxChange).observe(searchBoxElement, { childList: true, subtree: true });
 +
 +  // The search box. Without a built index (plain `zola serve`) pagefind-ui.js is missing: leave the header without one.
 +  if (typeof PagefindUI !== "undefined") {

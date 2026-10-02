@@ -17,7 +17,7 @@ It isn't an official Valkey project, and nothing here is upstream.
 Each site keeps its own [Pagefind](https://pagefind.app/) index, built in its own deploy workflow.
 A small script on each site merges the other sites' indexes into its search box,
 and skips any site whose index is missing, slow, or built with an incompatible Pagefind version.
-Each result is labelled with its site, and a site filter lists all four sites.
+Each result is labelled with its site, and a site filter lists all four sites, in alphabetical order on every site.
 The docs sites count the other sites' results at a tenth of their own, so their own pages come first for most queries.
 valkey.io counts every site the same.
 
@@ -41,11 +41,15 @@ The patches change nothing else. Each site keeps the Pagefind version it runs to
 
 ### valkey.io search box design
 
-[`patches/valkey-io.github.io-search-ui.diff`](patches/valkey-io.github.io-search-ui.diff) is a separate change on top of the valkey.io patch,
-by [@vic-tsang](https://github.com/vic-tsang). It styles the search box to match the site's header, shows results as a dropdown of cards
-under the box, and loads more results as the dropdown scrolls. It also moves the search box into the header's navigation,
-so on mobile it sits at the top of the menu. The search box design is a separate decision from the search backend,
-so it lives in its own patch.
+The search box design is a separate decision from the search backend, so it lives in its own patch, on top of the valkey.io patch.
+
+- [`patches/valkey-io.github.io-search-ui.diff`](patches/valkey-io.github.io-search-ui.diff), which the demo applies, makes valkey.io's
+  search work and look like the Starlight sites': a Search button in the header opens a modal, Ctrl+K (⌘K) toggles it, and the results use
+  Starlight's layout, in Starlight's light colours with valkey.io's accent. On mobile the button is the first item of the menu, and the
+  modal fills the screen. The modal script and styles are ported from Starlight's search component.
+- [`patches/valkey-io.github.io-search-ui-dropdown.diff`](patches/valkey-io.github.io-search-ui-dropdown.diff), by
+  [@vic-tsang](https://github.com/vic-tsang), is an alternative the demo doesn't apply: a search box in the header styled to match it,
+  results as a dropdown of cards, and more results loading as the dropdown scrolls.
 
 ## How the demo is built
 

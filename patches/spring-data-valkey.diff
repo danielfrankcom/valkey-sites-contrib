@@ -77,10 +77,10 @@ index 269d29e..088ebb4 100644
  				dark: './src/assets/spring-data-valkey-logo-with-name-dark.svg',
 diff --git a/docs/public/pagefind-merge.js b/docs/public/pagefind-merge.js
 new file mode 100644
-index 0000000..00b57aa
+index 0000000..a4916e0
 --- /dev/null
 +++ b/docs/public/pagefind-merge.js
-@@ -0,0 +1,112 @@
+@@ -0,0 +1,132 @@
 +// Cross-site search: merges the valkey.io, GLIDE and Valkey Admin Pagefind indexes into this site's search.
 +//
 +// Why not Starlight's `pagefind.mergeIndex` setting: Pagefind then stops the whole search box (this site's results
@@ -182,6 +182,23 @@ index 0000000..00b57aa
 +  );
 +}
 +
++// The site filter lists sites in the order their indexes finished merging, which changes between page views.
++// List them alphabetically instead, the same on every site. CSS `order` leaves the elements where the search box
++// put them, so the search box can keep updating them.
++function sortSiteFilter() {
++  const values = [...document.querySelectorAll(`${searchBox} .pagefind-ui__filter-value`)].filter((value) =>
++    value.querySelector('input[name="site"]'),
++  );
++  if (values.length === 0) return;
++  values[0].parentElement.style.display = "flex";
++  values[0].parentElement.style.flexDirection = "column";
++  const siteOf = (value) => value.querySelector("input").value;
++  values.sort((a, b) => siteOf(a).localeCompare(siteOf(b)));
++  values.forEach((value, i) => {
++    value.style.order = String(i + 1);
++  });
++}
++
 +// Start when the visitor first focuses or types into the search box; the search box loads Pagefind then too.
 +let merging = null;
 +function startMerging(event) {
@@ -192,6 +209,9 @@ index 0000000..00b57aa
 +if (typeof document !== "undefined") {
 +  document.addEventListener("focusin", startMerging, true);
 +  document.addEventListener("input", startMerging, true);
++  // The search box redraws the filter list after every search.
++  const searchBoxElement = document.querySelector(searchBox);
++  if (searchBoxElement) new MutationObserver(sortSiteFilter).observe(searchBoxElement, { childList: true, subtree: true });
 +}
 diff --git a/docs/scripts/pagefind-federation.sh b/docs/scripts/pagefind-federation.sh
 new file mode 100755
